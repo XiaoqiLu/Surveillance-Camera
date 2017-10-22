@@ -6,7 +6,7 @@ end
 
 if nargin < 2
     m = size(D, 1);
-    lambda = 1 / sqrt(m);
+    lambda = 1.1 / sqrt(m);
 end
 
 %% initialization

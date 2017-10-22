@@ -1,53 +1,62 @@
-% %% read video
-% 
-% vidIn = VideoReader('atrium.mp4');
-% 
-% vidHeight = vidIn.Height;
-% vidWidth = vidIn.Width;
-% 
-% vidStruct = struct('cdata',zeros(vidHeight,vidWidth,3,'uint8'), 'colormap',[]);
-% 
-% nFrame = 0;
-% while hasFrame(vidIn)
-%     nFrame = nFrame + 1;
-%     vidStruct(nFrame).cdata = readFrame(vidIn);
-% end
-% 
-% % set(gcf,'position',[400 400 vidObj.Width vidObj.Height]);
-% % set(gca,'units','pixels');
-% % set(gca,'position',[100 100 vidObj.Width vidObj.Height]);
-% % movie(vidStruct,1,vidObj.FrameRate);
-% 
-% 
-% 
-% %% use green
-% 
-% dim = vidHeight * vidWidth;
-% 
-% nFrame = min(nFrame, 600);
-% 
-% D = zeros(dim, nFrame);
-% 
-% for iFrame = 1 : nFrame
-%     D(:, iFrame) = reshape(vidStruct(iFrame).cdata(:, :, 2), [dim, 1]);
-% end
-% 
-% %% sparse and low-rank decomposition
-% 
-% [A, E] = SparseLowrankDecomposition(D);
+%% read video
 
-%% Output
+vidIn = VideoReader('atrium.mp4');
+
+vidHeight = vidIn.Height;
+vidWidth = vidIn.Width;
+
+nFrame = 0;
+while hasFrame(vidIn)
+    nFrame = nFrame + 1;
+    readFrame(vidIn);
+end
+
+vidIn.CurrentTime = 0;
+
+
+%% block-wise sparse and low-rank decomposition
 
 vidOut = VideoWriter('error.avi', 'Grayscale AVI');
+open(vidOut);
 
-frame = zeros(vidHeight, vidWidth, nFrame);
+threshold = 0.1;
+heat = 0;
 
-open(vidOut)
-for iFrame = 1 : nFrame
-    frame(:, :, iFrame) = 1 * (abs(reshape(E(:, iFrame), [vidHeight, vidWidth]) / 256) > 0.05);
-    writeVideo(vidOut, frame(:, :, iFrame));
+nFramePerBlock = 80;
+nFrameOverlap = 20;
+nFrameMoving = nFramePerBlock - nFrameOverlap;
+
+nBlock = floor((nFrame - nFramePerBlock) / nFrameMoving) + 1;
+nFrame = (nBlock - 1) * nFrameMoving + nFramePerBlock;
+
+for iBlock = 1 : nBlock
+    
+    disp(['===Block ', num2str(iBlock), ' out of ', num2str(nBlock), '===']);
+    
+    % read video
+    dim = vidHeight * vidWidth;
+    D = zeros(dim, nFramePerBlock);
+    for iFrame = 1 : nFramePerBlock
+        if iFrame == nFrameMoving + 1
+            flagTime = vidIn.CurrentTime;
+        end
+        frameIn = readFrame(vidIn);
+        D(:, iFrame) = reshape(frameIn(:, :, 2), [dim, 1]); % use green
+    end
+    
+    % sparse and low-rank decomposition
+    [A, E] = SparseLowrankDecomposition(D);
+    if iBlock > 1
+        E = E(:, (nFrameOverlap + 1) : end);
+    end
+    for jFrame = 1 : size(E, 2)
+        frameOut = abs(reshape(E(:, jFrame), [vidHeight, vidWidth]) / 256);
+        frameOut = 1 * (frameOut > threshold);
+        heat = heat + frameOut;
+        writeVideo(vidOut, frameOut);
+    end
+    vidIn.CurrentTime = flagTime;
 end
+
 close(vidOut);
 
-heat = mean(frame, 3);
-image(heat, 'CDataMapping', 'scaled')
