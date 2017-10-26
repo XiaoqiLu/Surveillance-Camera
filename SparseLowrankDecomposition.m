@@ -1,13 +1,15 @@
-function [A, E] = SparseLowrankDecomposition(D, lambda, tol)
+function [A, E] = SparseLowrankDecomposition(D, lambdaFactor, tol)
 
 if nargin < 3
     tol = 1e-2;
 end
 
 if nargin < 2
-    m = size(D, 1);
-    lambda = 1.1 / sqrt(m);
+    lambdaFactor = 1.1;
 end
+
+m = size(D, 1);
+lambda = lambdaFactor / sqrt(m);
 
 %% initialization
 A = D;
@@ -31,5 +33,6 @@ while err > tol
     disp(['Iteration:', num2str(nIter), ' err:', num2str(err)]);
 end
 
+disp(['Rank(A):', num2str(rank(A))]);
 
 end
